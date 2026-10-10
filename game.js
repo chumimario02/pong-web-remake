@@ -8,6 +8,7 @@ let gamePaused = false;
 let gameSpeed = 1;
 let difficulty = 'normal';
 let soundEnabled = true;
+let socket = null;
 
 // Dimensiones del canvas
 const GAME_WIDTH = canvas.width;
@@ -52,6 +53,79 @@ let ballState = {
     velY: (Math.random() - 0.5) * ball.speed
 };
 
+// ==================== INICIALIZAR SOCKET.IO ====================
+function initializeSocket() {
+    const serverUrl = window.location.hostname === 'localhost' 
+        ? 'http://localhost:3000' 
+        : 'https://pong-server.onrender.com';
+    
+    socket = io(serverUrl, {
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: 5
+    });
+
+    socket.on('connect', () => {
+        console.log('✅ Conectado al servidor');
+    });
+
+    socket.on('disconnect', () => {
+        console.log('❌ Desconectado del servidor');
+    });
+
+    socket.on('error', (error) => {
+        console.error('Error Socket.IO:', error);
+    });
+
+    // Eventos del servidor
+    socket.on('room_created', (data) => {
+        console.log('Sala creada:', data.roomId);
+        alert(`Sala creada. ID: ${data.roomId}`);
+    });
+
+    socket.on('room_joined', (data) => {
+        console.log('Unido a sala:', data.roomId);
+        alert('¡Te uniste a la sala! Comenzando partida...');
+    });
+
+    socket.on('player_joined', (data) => {
+        console.log('Jugador se unió:', data);
+        if (data.canStart) {
+            startMultiplayerGame();
+        }
+    });
+
+    socket.on('game_started', (data) => {
+        console.log('Juego iniciado');
+        gameRunning = true;
+        gameLoop();
+    });
+
+    socket.on('game_state_update', (data) => {
+        if (data.gameState) {
+            ballState = data.gameState.ball;
+            player2 = data.gameState.player2;
+            
+            document.getElementById('score1').textContent = data.gameState.player1.score;
+            document.getElementById('score2').textContent = data.gameState.player2.score;
+        }
+    });
+
+    socket.on('game_ended', (data) => {
+        gameRunning = false;
+        document.getElementById('finalScore1').textContent = data.scores.player1;
+        document.getElementById('finalScore2').textContent = data.scores.player2;
+        document.getElementById('winnerText').textContent = data.winner === 1 ? '🎉 ¡JUGADOR 1 GANA! 🎉' : '🎉 ¡JUGADOR 2 GANA! 🎉';
+        showScreen('gameOverScreen');
+    });
+
+    socket.on('player_disconnected', (data) => {
+        alert('El otro jugador se desconectó');
+        backToMenu();
+    });
+}
+
 // ==================== FUNCIONES DE NAVEGACIÓN ====================
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(screen => {
@@ -63,6 +137,7 @@ function showScreen(screenId) {
 function backToMenu() {
     gameRunning = false;
     gamePaused = false;
+    if (socket) socket.disconnect();
     showScreen('menu');
 }
 
@@ -76,10 +151,25 @@ function startSinglePlayer() {
 
 function startMultiplayer() {
     gameMode = 'multiplayer';
+    if (!socket) initializeSocket();
+    
+    const username = prompt('Ingresa tu nombre:') || 'Jugador' + Math.floor(Math.random() * 1000);
+    const roomId = prompt('¿Crear sala nueva (escribe: new) o unirse a una existente (escribe el ID)?');
+    
+    if (roomId === 'new') {
+        socket.emit('create_room', { username });
+        showScreen('gameScreen');
+        document.getElementById('gameMode').textContent = 'Esperando otro jugador...';
+    } else {
+        socket.emit('join_room', { roomId, username });
+        showScreen('gameScreen');
+    }
+}
+
+function startMultiplayerGame() {
     resetGame();
+    socket.emit('start_game');
     showScreen('gameScreen');
-    gameRunning = true;
-    gameLoop();
 }
 
 function showSettings() {
@@ -112,10 +202,16 @@ function restartGame() {
 // ==================== CONTROLES TÁCTILES ====================
 function movePlayer1Up(pressed) {
     player1.keys.up = pressed;
+    if (socket && gameMode === 'multiplayer') {
+        socket.emit('player_input', { direction: 'up', pressed });
+    }
 }
 
 function movePlayer1Down(pressed) {
     player1.keys.down = pressed;
+    if (socket && gameMode === 'multiplayer') {
+        socket.emit('player_input', { direction: 'down', pressed });
+    }
 }
 
 function movePlayer2Up(pressed) {
@@ -128,10 +224,10 @@ function movePlayer2Down(pressed) {
 
 // Controles por teclado (para desktop)
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'w' || e.key === 'W') player1.keys.up = true;
-    if (e.key === 's' || e.key === 'S') player1.keys.down = true;
-    if (e.key === 'ArrowUp') player2.keys.up = true;
-    if (e.key === 'ArrowDown') player2.keys.down = true;
+    if (e.key === 'w' || e.key === 'W') movePlayer1Up(true);
+    if (e.key === 's' || e.key === 'S') movePlayer1Down(true);
+    if (e.key === 'ArrowUp') movePlayer2Up(true);
+    if (e.key === 'ArrowDown') movePlayer2Down(true);
     if (e.key === ' ') {
         e.preventDefault();
         togglePause();
@@ -139,10 +235,10 @@ document.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('keyup', (e) => {
-    if (e.key === 'w' || e.key === 'W') player1.keys.up = false;
-    if (e.key === 's' || e.key === 'S') player1.keys.down = false;
-    if (e.key === 'ArrowUp') player2.keys.up = false;
-    if (e.key === 'ArrowDown') player2.keys.down = false;
+    if (e.key === 'w' || e.key === 'W') movePlayer1Up(false);
+    if (e.key === 's' || e.key === 'S') movePlayer1Down(false);
+    if (e.key === 'ArrowUp') movePlayer2Up(false);
+    if (e.key === 'ArrowDown') movePlayer2Down(false);
 });
 
 // ==================== CONFIGURACIÓN ====================
@@ -186,15 +282,12 @@ function updateScoreDisplay() {
 }
 
 function updatePlayer(player) {
-    // Movimiento del jugador
     if (player.keys.up && player.y > 0) {
         player.y -= paddle.speed * gameSpeed;
     }
     if (player.keys.down && player.y + paddle.height < GAME_HEIGHT) {
         player.y += paddle.speed * gameSpeed;
     }
-
-    // Limitar posición
     player.y = Math.max(0, Math.min(player.y, GAME_HEIGHT - paddle.height));
 }
 
@@ -203,17 +296,13 @@ function updateAI() {
     const ballCenter = ballState.y;
     const targetSpeed = (() => {
         switch (difficulty) {
-            case 'easy':
-                return 3;
-            case 'hard':
-                return 8;
+            case 'easy': return 3;
+            case 'hard': return 8;
             case 'normal':
-            default:
-                return 5;
+            default: return 5;
         }
     })();
 
-    // IA intenta seguir la pelota con algo de margen de error
     const errorMargin = difficulty === 'hard' ? 0 : difficulty === 'easy' ? 30 : 15;
     
     if (ballCenter < paddle2Center - errorMargin) {
@@ -221,7 +310,6 @@ function updateAI() {
     } else if (ballCenter > paddle2Center + errorMargin) {
         player2.y += targetSpeed * gameSpeed;
     }
-
     player2.y = Math.max(0, Math.min(player2.y, GAME_HEIGHT - paddle.height));
 }
 
@@ -229,14 +317,12 @@ function updateBall() {
     ballState.x += ballState.velX * gameSpeed;
     ballState.y += ballState.velY * gameSpeed;
 
-    // Colisión con bordes superior e inferior
     if (ballState.y <= 0 || ballState.y + ball.height >= GAME_HEIGHT) {
         ballState.velY = -ballState.velY;
         ballState.y = Math.max(0, Math.min(ballState.y, GAME_HEIGHT - ball.height));
         playSound('bounce');
     }
 
-    // Colisión con raqueta 1
     if (
         ballState.x <= player1.x + paddle.width &&
         ballState.y + ball.height >= player1.y &&
@@ -245,17 +331,13 @@ function updateBall() {
     ) {
         ballState.velX = -ballState.velX;
         ballState.x = player1.x + paddle.width;
-        
-        // Cambiar ángulo según dónde golpee la pelota
         let collidePoint = ballState.y - (player1.y + paddle.height / 2);
         collidePoint = collidePoint / (paddle.height / 2);
         ballState.velY = collidePoint * ball.maxSpeed;
         ballState.velX = Math.abs(ballState.velX);
-        
         playSound('paddle');
     }
 
-    // Colisión con raqueta 2
     if (
         ballState.x + ball.width >= player2.x &&
         ballState.y + ball.height >= player2.y &&
@@ -264,21 +346,17 @@ function updateBall() {
     ) {
         ballState.velX = -ballState.velX;
         ballState.x = player2.x - ball.width;
-        
         let collidePoint = ballState.y - (player2.y + paddle.height / 2);
         collidePoint = collidePoint / (paddle.height / 2);
         ballState.velY = collidePoint * ball.maxSpeed;
         ballState.velX = -Math.abs(ballState.velX);
-        
         playSound('paddle');
     }
 
-    // Gol - Jugador 1 anota
     if (ballState.x > GAME_WIDTH) {
         player1.score++;
         playSound('score');
         updateScoreDisplay();
-        
         if (player1.score >= 11) {
             endGame(1);
         } else {
@@ -286,12 +364,10 @@ function updateBall() {
         }
     }
 
-    // Gol - Jugador 2 anota
     if (ballState.x < 0) {
         player2.score++;
         playSound('score');
         updateScoreDisplay();
-        
         if (player2.score >= 11) {
             endGame(2);
         } else {
@@ -326,11 +402,9 @@ function endGame(winner) {
 
 // ==================== DIBUJO ====================
 function draw() {
-    // Fondo
     ctx.fillStyle = 'rgba(10, 14, 39, 0.1)';
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-    // Línea central punteada
     ctx.strokeStyle = 'rgba(0, 255, 136, 0.3)';
     ctx.setLineDash([10, 10]);
     ctx.beginPath();
@@ -339,18 +413,12 @@ function draw() {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Raqueta 1
     drawRectWithGlow(player1.x, player1.y, paddle.width, paddle.height, 'rgba(0, 255, 136, 1)', 15);
-
-    // Raqueta 2
     drawRectWithGlow(player2.x, player2.y, paddle.width, paddle.height, 'rgba(0, 255, 136, 1)', 15);
-
-    // Pelota
     drawCircleWithGlow(ballState.x + ball.width / 2, ballState.y + ball.height / 2, ball.width / 2, 'rgba(255, 0, 136, 1)', 20);
 }
 
 function drawRectWithGlow(x, y, w, h, color, glowSize) {
-    // Glow
     ctx.shadowColor = color;
     ctx.shadowBlur = glowSize;
     ctx.fillStyle = color;
@@ -359,7 +427,6 @@ function drawRectWithGlow(x, y, w, h, color, glowSize) {
 }
 
 function drawCircleWithGlow(x, y, r, color, glowSize) {
-    // Glow
     ctx.shadowColor = color;
     ctx.shadowBlur = glowSize;
     ctx.fillStyle = color;
@@ -422,21 +489,17 @@ function gameLoop() {
         return;
     }
 
-    // Actualizar
     updatePlayer(player1);
     
     if (gameMode === 'singleplayer') {
         updateAI();
-    } else {
-        updatePlayer(player2);
+    } else if (gameMode === 'multiplayer' && socket) {
+        // En multijugador, el servidor actualiza player2
     }
     
     updateBall();
-
-    // Dibujar
     draw();
 
-    // Siguiente frame
     requestAnimationFrame(gameLoop);
 }
 
