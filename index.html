@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pong - Web Remake</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="menu" class="screen">
+        <div class="menu-container">
+            <h1 class="game-title">PONG</h1>
+            <p class="game-subtitle">Web Remake</p>
+            <div class="menu-buttons">
+                <button class="btn btn-primary" onclick="startSinglePlayer()">
+                    <span class="btn-icon">🎮</span>
+                    Un Jugador
+                </button>
+                <button class="btn btn-primary" onclick="startMultiplayer()">
+                    <span class="btn-icon">👥</span>
+                    Multijugador
+                </button>
+                <button class="btn btn-secondary" onclick="showSettings()">
+                    <span class="btn-icon">⚙️</span>
+                    Configuración
+                </button>
+                <button class="btn btn-secondary" onclick="showCredits()">
+                    <span class="btn-icon">ℹ️</span>
+                    Acerca de
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="gameScreen" class="screen hidden">
+        <div class="game-container">
+            <canvas id="gameCanvas" width="800" height="400"></canvas>
+            <div class="hud">
+                <div class="player-score">
+                    <p>Jugador 1</p>
+                    <span id="score1">0</span>
+                </div>
+                <div class="center-info">
+                    <p id="gameMode">Un Jugador</p>
+                </div>
+                <div class="player-score">
+                    <p>Jugador 2</p>
+                    <span id="score2">0</span>
+                </div>
+            </div>
+
+            <div class="mobile-controls">
+                <div class="control-group left-control">
+                    <button class="btn-touch btn-up" ontouchstart="movePlayer1Up(true)" ontouchend="movePlayer1Up(false)" onclick="movePlayer1Up(true)">
+                        <span>▲</span>
+                    </button>
+                    <button class="btn-touch btn-down" ontouchstart="movePlayer1Down(true)" ontouchend="movePlayer1Down(false)" onclick="movePlayer1Down(true)">
+                        <span>▼</span>
+                    </button>
+                </div>
+
+                <div class="control-group center-control">
+                    <button class="btn-touch btn-pause" onclick="togglePause()">
+                        <span id="pauseText">⏸</span>
+                    </button>
+                </div>
+
+                <div class="control-group right-control">
+                    <button class="btn-touch btn-up" ontouchstart="movePlayer2Up(true)" ontouchend="movePlayer2Up(false)" onclick="movePlayer2Up(true)">
+                        <span>▲</span>
+                    </button>
+                    <button class="btn-touch btn-down" ontouchstart="movePlayer2Down(true)" ontouchend="movePlayer2Down(false)" onclick="movePlayer2Down(true)">
+                        <span>▼</span>
+                    </button>
+                </div>
+            </div>
+
+            <button class="btn-menu" onclick="backToMenu()">
+                <span>🏠</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="pauseScreen" class="screen hidden">
+        <div class="pause-container">
+            <h2>PAUSA</h2>
+            <div class="pause-buttons">
+                <button class="btn btn-primary" onclick="togglePause()">
+                    <span>▶</span>
+                    Reanudar
+                </button>
+                <button class="btn btn-secondary" onclick="backToMenu()">
+                    <span>🏠</span>
+                    Menú Principal
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="gameOverScreen" class="screen hidden">
+        <div class="gameover-container">
+            <h2>¡JUEGO TERMINADO!</h2>
+            <div class="final-score">
+                <div class="score-box">
+                    <p>Jugador 1</p>
+                    <span id="finalScore1">0</span>
+                </div>
+                <p class="vs-text">VS</p>
+                <div class="score-box">
+                    <p>Jugador 2</p>
+                    <span id="finalScore2">0</span>
+                </div>
+            </div>
+            <p id="winnerText" class="winner-text"></p>
+            <div class="gameover-buttons">
+                <button class="btn btn-primary" onclick="restartGame()">
+                    <span>🔄</span>
+                    Reintentar
+                </button>
+                <button class="btn btn-secondary" onclick="backToMenu()">
+                    <span>🏠</span>
+                    Menú Principal
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="settingsScreen" class="screen hidden">
+        <div class="settings-container">
+            <h2>Configuración</h2>
+            <div class="settings-group">
+                <label>
+                    <input type="checkbox" id="soundToggle" checked onchange="toggleSound()">
+                    <span>🔊 Sonido</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="darkMode" onchange="toggleDarkMode()">
+                    <span>🌙 Modo Oscuro</span>
+                </label>
+            </div>
+            <div class="settings-group">
+                <label>Dificultad IA:</label>
+                <select id="difficultySelect" onchange="setDifficulty(this.value)">
+                    <option value="easy">Fácil</option>
+                    <option value="normal" selected>Normal</option>
+                    <option value="hard">Difícil</option>
+                </select>
+            </div>
+            <div class="settings-group">
+                <label>Velocidad de juego:</label>
+                <input type="range" id="speedSlider" min="0.5" max="2" step="0.1" value="1" onchange="setGameSpeed(this.value)">
+                <span id="speedValue">1x</span>
+            </div>
+            <button class="btn btn-primary" onclick="backToMenu()">
+                <span>🏠</span>
+                Volver
+            </button>
+        </div>
+    </div>
+
+    <div id="creditsScreen" class="screen hidden">
+        <div class="credits-container">
+            <h2>Acerca de</h2>
+            <div class="credits-content">
+                <p><strong>PONG - Web Remake</strong></p>
+                <p>Un remake clásico del juego Pong para navegadores web</p>
+                <hr>
+                <p><strong>Versión:</strong> 1.0</p>
+                <p><strong>Tecnología:</strong> HTML5, Canvas, JavaScript</p>
+                <ul>
+                    <li>Juego Un Jugador vs IA</li>
+                    <li>Juego Multijugador Local</li>
+                    <li>Controles Táctiles</li>
+                    <li>Diferentes Dificultades</li>
+                    <li>Responsive Design</li>
+                </ul>
+            </div>
+            <button class="btn btn-primary" onclick="backToMenu()">
+                <span>🏠</span>
+                Volver
+            </button>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
