@@ -57,7 +57,7 @@ let ballState = {
 function initializeSocket() {
     const serverUrl = window.location.hostname === 'localhost' 
         ? 'http://localhost:3000' 
-        : 'https://pong-server.onrender.com';
+        : 'https://pong-server-8aus.onrender.com';
     
     socket = io(serverUrl, {
         reconnection: true,
