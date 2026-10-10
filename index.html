@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pong - Web Remake</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </head>
 <body>
     <div id="menu" class="screen">
@@ -18,7 +19,7 @@
                 </button>
                 <button class="btn btn-primary" onclick="startMultiplayer()">
                     <span class="btn-icon">👥</span>
-                    Multijugador
+                    Multijugador Online
                 </button>
                 <button class="btn btn-secondary" onclick="showSettings()">
                     <span class="btn-icon">⚙️</span>
@@ -51,10 +52,10 @@
 
             <div class="mobile-controls">
                 <div class="control-group left-control">
-                    <button class="btn-touch btn-up" ontouchstart="movePlayer1Up(true)" ontouchend="movePlayer1Up(false)" onclick="movePlayer1Up(true)">
+                    <button class="btn-touch btn-up" ontouchstart="movePlayer1Up(true)" ontouchend="movePlayer1Up(false)" onmousedown="movePlayer1Up(true)" onmouseup="movePlayer1Up(false)">
                         <span>▲</span>
                     </button>
-                    <button class="btn-touch btn-down" ontouchstart="movePlayer1Down(true)" ontouchend="movePlayer1Down(false)" onclick="movePlayer1Down(true)">
+                    <button class="btn-touch btn-down" ontouchstart="movePlayer1Down(true)" ontouchend="movePlayer1Down(false)" onmousedown="movePlayer1Down(true)" onmouseup="movePlayer1Down(false)">
                         <span>▼</span>
                     </button>
                 </div>
@@ -66,10 +67,10 @@
                 </div>
 
                 <div class="control-group right-control">
-                    <button class="btn-touch btn-up" ontouchstart="movePlayer2Up(true)" ontouchend="movePlayer2Up(false)" onclick="movePlayer2Up(true)">
+                    <button class="btn-touch btn-up" ontouchstart="movePlayer2Up(true)" ontouchend="movePlayer2Up(false)" onmousedown="movePlayer2Up(true)" onmouseup="movePlayer2Up(false)">
                         <span>▲</span>
                     </button>
-                    <button class="btn-touch btn-down" ontouchstart="movePlayer2Down(true)" ontouchend="movePlayer2Down(false)" onclick="movePlayer2Down(true)">
+                    <button class="btn-touch btn-down" ontouchstart="movePlayer2Down(true)" ontouchend="movePlayer2Down(false)" onmousedown="movePlayer2Down(true)" onmouseup="movePlayer2Down(false)">
                         <span>▼</span>
                     </button>
                 </div>
@@ -166,14 +167,17 @@
                 <p>Un remake clásico del juego Pong para navegadores web</p>
                 <hr>
                 <p><strong>Versión:</strong> 1.0</p>
-                <p><strong>Tecnología:</strong> HTML5, Canvas, JavaScript</p>
+                <p><strong>Tecnología:</strong> HTML5, Canvas, JavaScript, Socket.IO</p>
                 <ul>
                     <li>Juego Un Jugador vs IA</li>
-                    <li>Juego Multijugador Local</li>
+                    <li>Juego Multijugador Online</li>
                     <li>Controles Táctiles</li>
                     <li>Diferentes Dificultades</li>
                     <li>Responsive Design</li>
                 </ul>
+                <p style="margin-top: 20px; font-size: 0.9rem;">
+                    Backend: https://pong-server.onrender.com
+                </p>
             </div>
             <button class="btn btn-primary" onclick="backToMenu()">
                 <span>🏠</span>
