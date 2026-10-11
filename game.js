@@ -9,6 +9,10 @@ let gameSpeed = 1;
 let difficulty = 'normal';
 let soundEnabled = true;
 let socket = null;
+let currentUsername = '';
+let currentRoomId = null;
+let currentRoomName = '';
+let myPlayerNumber = 1;
 
 // Dimensiones del canvas
 const GAME_WIDTH = canvas.width;
@@ -55,6 +59,8 @@ let ballState = {
 
 // ==================== INICIALIZAR SOCKET.IO ====================
 function initializeSocket() {
+    if (socket && socket.connected) return;
+
     const serverUrl = window.location.hostname === 'localhost' 
         ? 'http://localhost:3000' 
         : 'https://pong-server-8aus.onrender.com';
@@ -68,6 +74,7 @@ function initializeSocket() {
 
     socket.on('connect', () => {
         console.log('✅ Conectado al servidor');
+        refreshRooms();
     });
 
     socket.on('disconnect', () => {
@@ -76,22 +83,37 @@ function initializeSocket() {
 
     socket.on('error', (error) => {
         console.error('Error Socket.IO:', error);
+        alert(error.message || 'Error de conexión');
     });
 
-    // Eventos del servidor
+    // Lista de salas
+    socket.on('rooms_list', (rooms) => {
+        renderRoomsList(rooms);
+    });
+
+    // Sala creada
     socket.on('room_created', (data) => {
-        console.log('Sala creada:', data.roomId);
-        alert(`Sala creada. ID: ${data.roomId}`);
+        console.log('Sala creada:', data.roomId, data.roomName);
+        currentRoomId = data.roomId;
+        currentRoomName = data.roomName;
+        myPlayerNumber = data.playerNumber;
+        showWaitingRoom(data.roomName, data.roomId);
     });
 
+    // Unido a sala
     socket.on('room_joined', (data) => {
-        console.log('Unido a sala:', data.roomId);
-        alert('¡Te uniste a la sala! Comenzando partida...');
+        console.log('Unido a sala:', data.roomId, data.roomName);
+        currentRoomId = data.roomId;
+        currentRoomName = data.roomName;
+        myPlayerNumber = data.playerNumber;
+        document.getElementById('gameMode').textContent = data.roomName || 'Multijugador';
     });
 
+    // Otro jugador se unió
     socket.on('player_joined', (data) => {
         console.log('Jugador se unió:', data);
         if (data.canStart) {
+            // Ambos listos → iniciar
             startMultiplayerGame();
         }
     });
@@ -99,14 +121,24 @@ function initializeSocket() {
     socket.on('game_started', (data) => {
         console.log('Juego iniciado');
         gameRunning = true;
+        showScreen('gameScreen');
+        document.getElementById('gameMode').textContent = currentRoomName || 'Multijugador';
         gameLoop();
     });
 
     socket.on('game_state_update', (data) => {
         if (data.gameState) {
             ballState = data.gameState.ball;
-            player2 = data.gameState.player2;
-            
+            // Actualizar la raqueta del oponente
+            if (myPlayerNumber === 1) {
+                player2.y = data.gameState.player2.y;
+                player2.score = data.gameState.player2.score;
+                player1.score = data.gameState.player1.score;
+            } else {
+                player1.y = data.gameState.player1.y;
+                player1.score = data.gameState.player1.score;
+                player2.score = data.gameState.player2.score;
+            }
             document.getElementById('score1').textContent = data.gameState.player1.score;
             document.getElementById('score2').textContent = data.gameState.player2.score;
         }
@@ -126,6 +158,110 @@ function initializeSocket() {
     });
 }
 
+// ==================== LOBBY / SALAS ====================
+function openMultiplayerLobby() {
+    gameMode = 'multiplayer';
+    if (!socket) initializeSocket();
+    else refreshRooms();
+
+    // Nombre por defecto
+    const input = document.getElementById('usernameInput');
+    if (!input.value) {
+        input.value = 'Jugador' + Math.floor(Math.random() * 900 + 100);
+    }
+    showScreen('multiplayerLobby');
+}
+
+function getUsername() {
+    const name = document.getElementById('usernameInput').value.trim();
+    currentUsername = name || ('Jugador' + Math.floor(Math.random() * 900 + 100));
+    return currentUsername;
+}
+
+function createRoom() {
+    if (!socket || !socket.connected) {
+        alert('No conectado al servidor. Intenta de nuevo.');
+        initializeSocket();
+        return;
+    }
+    const username = getUsername();
+    const roomName = document.getElementById('roomNameInput').value.trim();
+    socket.emit('create_room', { username, roomName });
+}
+
+function joinRoom(roomId) {
+    if (!socket || !socket.connected) {
+        alert('No conectado al servidor.');
+        return;
+    }
+    const username = getUsername();
+    socket.emit('join_room', { roomId, username });
+    showScreen('gameScreen');
+    document.getElementById('gameMode').textContent = 'Conectando...';
+}
+
+function joinRoomByCode() {
+    const code = document.getElementById('roomCodeInput').value.trim().toUpperCase();
+    if (!code || code.length < 4) {
+        alert('Ingresa un código válido');
+        return;
+    }
+    joinRoom(code);
+}
+
+function refreshRooms() {
+    if (socket && socket.connected) {
+        socket.emit('get_rooms');
+    } else {
+        document.getElementById('roomsList').innerHTML = '<p class="no-rooms">Conectando al servidor...</p>';
+    }
+}
+
+function renderRoomsList(rooms) {
+    const container = document.getElementById('roomsList');
+    if (!rooms || rooms.length === 0) {
+        container.innerHTML = '<p class="no-rooms">No hay salas disponibles.<br>¡Crea una!</p>';
+        return;
+    }
+
+    container.innerHTML = rooms.map(room => `
+        <div class="room-item" onclick="joinRoom('${room.roomId}')">
+            <div class="room-info">
+                <div class="room-name">${escapeHtml(room.roomName)}</div>
+                <div class="room-meta">Host: ${escapeHtml(room.hostName)} · Código: ${room.roomId}</div>
+            </div>
+            <div class="room-players">${room.players}/${room.maxPlayers}</div>
+        </div>
+    `).join('');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+}
+
+function showWaitingRoom(roomName, roomId) {
+    document.getElementById('waitingRoomTitle').textContent = roomName || 'Sala';
+    document.getElementById('waitingRoomCode').textContent = roomId;
+    document.getElementById('waitingStatus').textContent = 'Esperando a otro jugador...';
+    showScreen('waitingRoom');
+}
+
+function leaveWaitingRoom() {
+    if (socket) socket.disconnect();
+    socket = null;
+    currentRoomId = null;
+    backToMenu();
+}
+
+function startMultiplayerGame() {
+    resetGame();
+    if (socket) socket.emit('start_game');
+    showScreen('gameScreen');
+    document.getElementById('gameMode').textContent = currentRoomName || 'Multijugador';
+}
+
 // ==================== FUNCIONES DE NAVEGACIÓN ====================
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(screen => {
@@ -137,7 +273,12 @@ function showScreen(screenId) {
 function backToMenu() {
     gameRunning = false;
     gamePaused = false;
-    if (socket) socket.disconnect();
+    currentRoomId = null;
+    currentRoomName = '';
+    if (socket) {
+        socket.disconnect();
+        socket = null;
+    }
     showScreen('menu');
 }
 
@@ -145,31 +286,9 @@ function startSinglePlayer() {
     gameMode = 'singleplayer';
     resetGame();
     showScreen('gameScreen');
+    document.getElementById('gameMode').textContent = 'Un Jugador';
     gameRunning = true;
     gameLoop();
-}
-
-function startMultiplayer() {
-    gameMode = 'multiplayer';
-    if (!socket) initializeSocket();
-    
-    const username = prompt('Ingresa tu nombre:') || 'Jugador' + Math.floor(Math.random() * 1000);
-    const roomId = prompt('¿Crear sala nueva (escribe: new) o unirse a una existente (escribe el ID)?');
-    
-    if (roomId === 'new') {
-        socket.emit('create_room', { username });
-        showScreen('gameScreen');
-        document.getElementById('gameMode').textContent = 'Esperando otro jugador...';
-    } else {
-        socket.emit('join_room', { roomId, username });
-        showScreen('gameScreen');
-    }
-}
-
-function startMultiplayerGame() {
-    resetGame();
-    socket.emit('start_game');
-    showScreen('gameScreen');
 }
 
 function showSettings() {
@@ -193,6 +312,11 @@ function togglePause() {
 }
 
 function restartGame() {
+    if (gameMode === 'multiplayer') {
+        // En multi no tiene sentido reiniciar localmente
+        backToMenu();
+        return;
+    }
     resetGame();
     showScreen('gameScreen');
     gameRunning = true;
@@ -216,18 +340,35 @@ function movePlayer1Down(pressed) {
 
 function movePlayer2Up(pressed) {
     player2.keys.up = pressed;
+    if (socket && gameMode === 'multiplayer' && myPlayerNumber === 2) {
+        socket.emit('player_input', { direction: 'up', pressed });
+    }
 }
 
 function movePlayer2Down(pressed) {
     player2.keys.down = pressed;
+    if (socket && gameMode === 'multiplayer' && myPlayerNumber === 2) {
+        socket.emit('player_input', { direction: 'down', pressed });
+    }
 }
 
 // Controles por teclado (para desktop)
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'w' || e.key === 'W') movePlayer1Up(true);
-    if (e.key === 's' || e.key === 'S') movePlayer1Down(true);
-    if (e.key === 'ArrowUp') movePlayer2Up(true);
-    if (e.key === 'ArrowDown') movePlayer2Down(true);
+    if (gameMode === 'multiplayer') {
+        // En multi, solo controlas tu raqueta
+        if (myPlayerNumber === 1) {
+            if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') movePlayer1Up(true);
+            if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') movePlayer1Down(true);
+        } else {
+            if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') movePlayer2Up(true);
+            if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') movePlayer2Down(true);
+        }
+    } else {
+        if (e.key === 'w' || e.key === 'W') movePlayer1Up(true);
+        if (e.key === 's' || e.key === 'S') movePlayer1Down(true);
+        if (e.key === 'ArrowUp') movePlayer2Up(true);
+        if (e.key === 'ArrowDown') movePlayer2Down(true);
+    }
     if (e.key === ' ') {
         e.preventDefault();
         togglePause();
@@ -235,10 +376,20 @@ document.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('keyup', (e) => {
-    if (e.key === 'w' || e.key === 'W') movePlayer1Up(false);
-    if (e.key === 's' || e.key === 'S') movePlayer1Down(false);
-    if (e.key === 'ArrowUp') movePlayer2Up(false);
-    if (e.key === 'ArrowDown') movePlayer2Down(false);
+    if (gameMode === 'multiplayer') {
+        if (myPlayerNumber === 1) {
+            if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') movePlayer1Up(false);
+            if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') movePlayer1Down(false);
+        } else {
+            if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') movePlayer2Up(false);
+            if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') movePlayer2Down(false);
+        }
+    } else {
+        if (e.key === 'w' || e.key === 'W') movePlayer1Up(false);
+        if (e.key === 's' || e.key === 'S') movePlayer1Down(false);
+        if (e.key === 'ArrowUp') movePlayer2Up(false);
+        if (e.key === 'ArrowDown') movePlayer2Down(false);
+    }
 });
 
 // ==================== CONFIGURACIÓN ====================
@@ -314,6 +465,9 @@ function updateAI() {
 }
 
 function updateBall() {
+    // En multiplayer el servidor controla la pelota
+    if (gameMode === 'multiplayer') return;
+
     ballState.x += ballState.velX * gameSpeed;
     ballState.y += ballState.velY * gameSpeed;
 
@@ -489,17 +643,21 @@ function gameLoop() {
         return;
     }
 
-    updatePlayer(player1);
-    
+    // Solo actualiza la raqueta local en multi
     if (gameMode === 'singleplayer') {
+        updatePlayer(player1);
         updateAI();
-    } else if (gameMode === 'multiplayer' && socket) {
-        // En multijugador, el servidor actualiza player2
+        updateBall();
+    } else if (gameMode === 'multiplayer') {
+        // Enviar inputs y dejar que el servidor mueva todo
+        if (myPlayerNumber === 1) {
+            updatePlayer(player1);
+        } else {
+            updatePlayer(player2);
+        }
     }
     
-    updateBall();
     draw();
-
     requestAnimationFrame(gameLoop);
 }
 

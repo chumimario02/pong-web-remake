@@ -17,7 +17,7 @@
                     <span class="btn-icon">🎮</span>
                     Un Jugador
                 </button>
-                <button class="btn btn-primary" onclick="startMultiplayer()">
+                <button class="btn btn-primary" onclick="openMultiplayerLobby()">
                     <span class="btn-icon">👥</span>
                     Multijugador Online
                 </button>
@@ -30,6 +30,66 @@
                     Acerca de
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- ==================== LOBBY MULTIJUGADOR ==================== -->
+    <div id="multiplayerLobby" class="screen hidden">
+        <div class="lobby-container">
+            <h2>🌐 Multijugador Online</h2>
+
+            <div class="lobby-section">
+                <label for="usernameInput">Tu nombre:</label>
+                <input type="text" id="usernameInput" placeholder="Jugador" maxlength="16" value="">
+            </div>
+
+            <div class="lobby-section create-section">
+                <h3>Crear sala</h3>
+                <div class="create-row">
+                    <input type="text" id="roomNameInput" placeholder="Nombre de la sala (opcional)" maxlength="24">
+                    <button class="btn btn-primary btn-sm" onclick="createRoom()">
+                        ➕ Crear
+                    </button>
+                </div>
+            </div>
+
+            <div class="lobby-section">
+                <div class="rooms-header">
+                    <h3>Salas disponibles</h3>
+                    <button class="btn-refresh" onclick="refreshRooms()" title="Actualizar">🔄</button>
+                </div>
+                <div id="roomsList" class="rooms-list">
+                    <p class="no-rooms">Cargando salas...</p>
+                </div>
+            </div>
+
+            <div class="lobby-section join-code-section">
+                <h3>Unirse con código</h3>
+                <div class="create-row">
+                    <input type="text" id="roomCodeInput" placeholder="Código (ej: A3K9X2)" maxlength="6" style="text-transform: uppercase;">
+                    <button class="btn btn-secondary btn-sm" onclick="joinRoomByCode()">
+                        🔗 Unirse
+                    </button>
+                </div>
+            </div>
+
+            <button class="btn btn-secondary" onclick="backToMenu()" style="margin-top: 20px;">
+                <span>🏠</span>
+                Volver al menú
+            </button>
+        </div>
+    </div>
+
+    <!-- Pantalla de espera en sala -->
+    <div id="waitingRoom" class="screen hidden">
+        <div class="lobby-container">
+            <h2 id="waitingRoomTitle">Sala</h2>
+            <p id="waitingRoomCode" class="room-code"></p>
+            <p id="waitingStatus" class="waiting-status">Esperando a otro jugador...</p>
+            <div class="spinner"></div>
+            <button class="btn btn-secondary" onclick="leaveWaitingRoom()" style="margin-top: 30px;">
+                Cancelar
+            </button>
         </div>
     </div>
 
@@ -166,17 +226,18 @@
                 <p><strong>PONG - Web Remake</strong></p>
                 <p>Un remake clásico del juego Pong para navegadores web</p>
                 <hr>
-                <p><strong>Versión:</strong> 1.0</p>
+                <p><strong>Versión:</strong> 1.1</p>
                 <p><strong>Tecnología:</strong> HTML5, Canvas, JavaScript, Socket.IO</p>
                 <ul>
                     <li>Juego Un Jugador vs IA</li>
                     <li>Juego Multijugador Online</li>
+                    <li>Menú de salas con códigos cortos</li>
                     <li>Controles Táctiles</li>
                     <li>Diferentes Dificultades</li>
                     <li>Responsive Design</li>
                 </ul>
                 <p style="margin-top: 20px; font-size: 0.9rem;">
-                    Backend: https://pong-server.onrender.com
+                    Backend: https://pong-server-8aus.onrender.com
                 </p>
             </div>
             <button class="btn btn-primary" onclick="backToMenu()">
